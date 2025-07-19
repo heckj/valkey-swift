@@ -28,10 +28,27 @@ struct ClusterIntegrationTests {
         let firstNodePort = ClusterIntegrationTests.firstNodePort ?? 6379
         try await Self.withValkeyCluster([(host: firstNodeHostname, port: firstNodePort, tls: false)]) { (client, logger) in
             try await Self.withKey(connection: client) { key in
-                _ = try await client.set(key, value: "Hello")
+                try await client.set(key, value: "Hello")
 
                 let response = try await client.get(key)
                 #expect(response.map { String(buffer: $0) } == "Hello")
+            }
+        }
+    }
+
+    @available(valkeySwift 1.0, *)
+    func testWithConnection() async throws {
+        var logger = Logger(label: "ValkeyCluster")
+        logger.logLevel = .trace
+        let firstNodeHostname = ClusterIntegrationTests.firstNodeHostname!
+        let firstNodePort = ClusterIntegrationTests.firstNodePort ?? 6379
+        try await Self.withValkeyCluster([(host: firstNodeHostname, port: firstNodePort, tls: false)]) { (client, logger) in
+            try await Self.withKey(connection: client) { key in
+                try await client.withConnection(forKeys: [key]) { connection in
+                    _ = try await connection.set(key, value: "Hello")
+                    let response = try await connection.get(key)
+                    #expect(response.map { String(buffer: $0) } == "Hello")
+                }
             }
         }
     }
@@ -48,7 +65,7 @@ struct ClusterIntegrationTests {
         } catch {
             result = .failure(error)
         }
-        _ = try await connection.del(keys: [key])
+        try await connection.del(keys: [key])
         return try result.get()
     }
 
